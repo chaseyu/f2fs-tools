@@ -1610,7 +1610,7 @@ extern int utf8_to_utf16(char *, const char *, size_t, size_t);
 extern int utf16_to_utf8(char *, const char *, size_t, size_t);
 extern int log_base_2(uint32_t);
 extern unsigned int addrs_per_page(struct f2fs_inode *, bool);
-extern unsigned int f2fs_max_file_offset(struct f2fs_inode *);
+extern u64 f2fs_max_file_offset(struct f2fs_inode *);
 extern __u32 f2fs_inode_chksum(struct f2fs_node *);
 extern __u32 f2fs_checkpoint_chksum(struct f2fs_checkpoint *);
 extern int write_inode(struct f2fs_node *, u64, enum rw_hint);
