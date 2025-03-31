@@ -555,6 +555,7 @@ printout:
 	DISP_u32(sb, qf_ino[PRJQUOTA]);
 
 	DISP_u16(sb, s_encoding);
+	DISP_u16(sb, s_encoding_flags);
 	DISP_u32(sb, crc);
 
 	print_sb_debug_info(sb);
