@@ -756,18 +756,22 @@ int f2fs_resize(struct f2fs_sb_info *sbi)
 
 	/* may different sector size */
 	if ((c.target_sectors * c.sector_size >>
-			get_sb(log_blocksize)) < get_sb(block_count))
+			get_sb(log_blocksize)) < get_sb(block_count)) {
 		if (!c.safe_resize) {
 			ASSERT_MSG("Nothing to resize, now only supports resizing with safe resize flag\n");
 			return -1;
 		} else {
 			return f2fs_resize_shrink(sbi);
 		}
-	else if (((c.target_sectors * c.sector_size >>
+	} else if (((c.target_sectors * c.sector_size >>
 			get_sb(log_blocksize)) > get_sb(block_count)) ||
-			c.ignore_error)
+			c.ignore_error) {
+		if (c.safe_resize) {
+			ASSERT_MSG("Expanding resize doesn't support safe resize flag");
+			return -1;
+		}
 		return f2fs_resize_grow(sbi);
-	else {
+	} else {
 		MSG(0, "Nothing to resize.\n");
 		return 0;
 	}
