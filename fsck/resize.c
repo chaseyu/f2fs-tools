@@ -765,7 +765,7 @@ int f2fs_resize(struct f2fs_sb_info *sbi)
 		}
 	else if (((c.target_sectors * c.sector_size >>
 			get_sb(log_blocksize)) > get_sb(block_count)) ||
-			c.force)
+			c.ignore_error)
 		return f2fs_resize_grow(sbi);
 	else {
 		MSG(0, "Nothing to resize.\n");
