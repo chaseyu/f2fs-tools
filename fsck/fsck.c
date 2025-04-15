@@ -1738,11 +1738,18 @@ static int f2fs_check_hash_code(int encoding, int casefolded,
 		char new[F2FS_PRINT_NAMELEN];
 
 		pretty_print_filename(name, len, new, enc_name);
-		FIX_MSG("Mismatch hash_code for \"%s\" [%x:%x]",
-				new, le32_to_cpu(dentry->hash_code),
-				hash_code);
-		dentry->hash_code = cpu_to_le32(hash_code);
-		return 1;
+
+		ASSERT_MSG("Mismatch hash_code for \"%s\" [%x:%x]",
+					new, le32_to_cpu(dentry->hash_code),
+					hash_code);
+		if (c.fix_on) {
+			FIX_MSG("Fix hash_code for \"%s\" from %x to %x",
+					new, le32_to_cpu(dentry->hash_code),
+					hash_code);
+			dentry->hash_code = cpu_to_le32(hash_code);
+			return 1;
+		}
+		return 0;
 	}
 	return 0;
 }
