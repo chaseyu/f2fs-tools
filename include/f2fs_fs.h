@@ -682,7 +682,8 @@ enum {
 #define IS_DEVICE_ALIASING(fi)	((fi)->i_flags & cpu_to_le32(F2FS_DEVICE_ALIAS_FL))
 
 #define F2FS_ENC_UTF8_12_1	1
-#define F2FS_ENC_STRICT_MODE_FL	(1 << 0)
+#define F2FS_ENC_STRICT_MODE_FL		(1 << 0)
+#define F2FS_ENC_NO_COMPAT_FALLBACK_FL	(1 << 1)
 
 /* This flag is used by node and meta inodes, and by recovery */
 #define GFP_F2FS_ZERO	(GFP_NOFS | __GFP_ZERO)
@@ -1467,13 +1468,22 @@ enum {
 #define SB_ABNORMAL_STOP	0x2	/* s_stop_reason is set except shutdown */
 #define SB_FS_ERRORS		0x4	/* s_erros is set */
 #define SB_INVALID		0x8	/* sb is invalid */
-#define SB_NEED_FIX (SB_ABNORMAL_STOP | SB_FS_ERRORS | SB_INVALID)
+#define SB_ENCODE_FLAG		0x16	/* encode_flag */
+#define SB_NEED_FIX		(SB_ABNORMAL_STOP | SB_FS_ERRORS |	\
+				SB_INVALID | SB_ENCODE_FLAG)
 
 #define MAX_CACHE_SUMS			8
 
 /* feature list in Android */
 enum {
 	F2FS_FEATURE_NAT_BITS = 0x0001,
+};
+
+/* nolinear lookup tune */
+enum {
+	LINEAR_LOOKUP_DEFAULT = 0,
+	LINEAR_LOOKUP_ENABLE,
+	LINEAR_LOOKUP_DISABLE,
 };
 
 struct f2fs_configuration {
@@ -1541,6 +1551,7 @@ struct f2fs_configuration {
 	int preserve_limits;		/* preserve quota limits */
 	int large_nat_bitmap;
 	int fix_chksum;			/* fix old cp.chksum position */
+	int nolinear_lookup;		/* disable linear lookup */
 	unsigned int feature;			/* defined features */
 	unsigned int disabled_feature;	/* disabled feature, used for Android only */
 	unsigned int quota_bits;	/* quota bits */

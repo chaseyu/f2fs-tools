@@ -2357,6 +2357,34 @@ int fsck_chk_quota_files(struct f2fs_sb_info *sbi)
 	return ret;
 }
 
+void fsck_update_sb_flags(struct f2fs_sb_info *sbi)
+{
+	struct f2fs_super_block *sb = F2FS_RAW_SUPER(sbi);
+	u16 flags = get_sb(s_encoding_flags);
+
+	if (c.nolinear_lookup == LINEAR_LOOKUP_DISABLE) {
+		if (!(flags & F2FS_ENC_NO_COMPAT_FALLBACK_FL)) {
+			flags |= F2FS_ENC_NO_COMPAT_FALLBACK_FL;
+			set_sb(s_encoding_flags, flags);
+			c.fix_on = 1;
+			c.invalid_sb |= SB_ENCODE_FLAG;
+			INFO_MSG("Casefold: disable linear lookup\n");
+		}
+	} else if (c.nolinear_lookup == LINEAR_LOOKUP_ENABLE) {
+		if (flags & F2FS_ENC_NO_COMPAT_FALLBACK_FL) {
+			flags &= ~F2FS_ENC_NO_COMPAT_FALLBACK_FL;
+			set_sb(s_encoding_flags, flags);
+			c.fix_on = 1;
+			c.invalid_sb |= SB_ENCODE_FLAG;
+			INFO_MSG("Casefold: enable linear lookup\n");
+		}
+	} else {
+		INFO_MSG("Casefold: linear_lookup [%s]\n",
+			get_sb(s_encoding_flags) & F2FS_ENC_NO_COMPAT_FALLBACK_FL ?
+			"disable" : "enable");
+	}
+}
+
 int fsck_chk_meta(struct f2fs_sb_info *sbi)
 {
 	struct f2fs_fsck *fsck = F2FS_FSCK(sbi);
@@ -3770,7 +3798,7 @@ int fsck_verify(struct f2fs_sb_info *sbi)
 		if (c.invalid_sb & SB_FS_ERRORS)
 			memset(sb->s_errors, 0, MAX_F2FS_ERRORS);
 
-		if (c.invalid_sb & SB_NEED_FIX)
+		if (c.invalid_sb & (SB_NEED_FIX | SB_ENCODE_FLAG))
 			update_superblock(sb, SB_MASK_ALL);
 
 		/* to return FSCK_ERROR_CORRECTED */
