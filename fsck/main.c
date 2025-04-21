@@ -233,6 +233,10 @@ static void add_default_options(void)
 
 		/* disable nat_bits feature by default */
 		c.disabled_feature |= F2FS_FEATURE_NAT_BITS;
+
+		/* enable write hitn by default */
+		c.need_whint = true;
+		c.whint = WRITE_LIFE_NOT_SET;
 	}
 	c.quota_fix = 1;
 }
