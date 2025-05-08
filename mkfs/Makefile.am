@@ -27,4 +27,6 @@ install-exec-hook:
 	fi
 
 uninstall-hook:
-	rm $(DESTDIR)$(root_libdir)/libf2fs_format.so*
+	if test -f "$(DESTDIR)$(root_libdir)/libf2fs_format.so*"; then \
+		rm $(DESTDIR)$(root_libdir)/libf2fs_format.so*; \
+	fi
