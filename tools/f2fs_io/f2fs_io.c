@@ -258,6 +258,8 @@ static void do_getflags(int argc, char **argv, const struct cmd_desc *cmd)
 
 	ret = ioctl(fd, F2FS_IOC_GETFLAGS, &flag);
 	printf("get a flag on %s ret=%d, flags=", argv[1], ret);
+	if (ret)
+		die_errno("F2FS_IOC_GETFLAGS failed");
 	if (flag & FS_CASEFOLD_FL) {
 		printf("casefold");
 		exist = 1;
@@ -352,6 +354,8 @@ static void do_setflags(int argc, char **argv, const struct cmd_desc *cmd)
 
 	ret = ioctl(fd, F2FS_IOC_SETFLAGS, &flag);
 	printf("set a flag on %s ret=%d, flags=%s\n", argv[2], ret, argv[1]);
+	if (ret)
+		die_errno("F2FS_IOC_SETFLAGS failed");
 	exit(0);
 }
 
@@ -394,6 +398,8 @@ static void do_clearflags(int argc, char **argv, const struct cmd_desc *cmd)
 
 	ret = ioctl(fd, F2FS_IOC_SETFLAGS, &flag);
 	printf("clear a flag on %s ret=%d, flags=%s\n", argv[2], ret, argv[1]);
+	if (ret)
+		die_errno("F2FS_IOC_SETFLAGS failed");
 	exit(0);
 }
 
