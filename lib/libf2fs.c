@@ -1375,6 +1375,7 @@ int f2fs_get_f2fs_info(void)
 	MSG(0, "Info: total sectors = %"PRIu64" (%"PRIu64" MB)\n",
 				c.total_sectors, (c.total_sectors *
 					(c.sector_size >> 9)) >> 11);
+	MSG(0, "Info: block size = %u\n", c.blksize);
 	return 0;
 }
 
