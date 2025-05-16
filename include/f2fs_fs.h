@@ -1892,7 +1892,7 @@ static inline double get_best_overprovision(struct f2fs_super_block *sb)
 	for (; candidate <= end; candidate += diff) {
 		reserved = get_reserved(sb, candidate);
 		ovp = (usable_main_segs - reserved) * candidate / 100;
-		if (ovp < 0)
+		if (ovp <= 0)
 			continue;
 		space = usable_main_segs - max((double)reserved, ovp) -
 					overprovision_segment_buffer(sb);
