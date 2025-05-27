@@ -1347,6 +1347,12 @@ int f2fs_get_f2fs_info(void)
 			}
 			c.zone_blocks = c.devices[i].zone_blocks;
 		}
+		if (!c.zone_blocks ||
+				(c.zone_blocks % DEFAULT_BLOCKS_PER_SEGMENT)) {
+			MSG(0, "\tError: zone size should be a multiple of "
+				"segment size\n");
+			return -1;
+		}
 
 		/*
 		 * Align sections to the device zone size and align F2FS zones
