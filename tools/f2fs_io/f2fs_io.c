@@ -2092,6 +2092,151 @@ static void do_ftruncate(int argc, char **argv, const struct cmd_desc *cmd)
 	exit(0);
 }
 
+#define test_create_perf_desc "measure file creation speed"
+#define test_create_perf_help						\
+"f2fs_io test_create_perf [-s] [-S] <dir> <num_files> <size_kb>\n\n"	\
+"Measures file creation and deletion performance.\n"			\
+"  <dir>          The target directory where files will be created.\n"	\
+"  <num_files>    The total number of files to create and delete.\n"	\
+"  <size_kb>      The size of each file in kb.\n"			\
+"  [-s]           Call fsync() after each file creation.\n"		\
+"  [-S]           Call sync() after deleting all files.\n"
+
+static void do_test_create_perf(int argc, char **argv, const struct cmd_desc *cmd)
+{
+	bool do_fsync = false, do_sync = false;
+	int opt;
+	char *dir;
+	int num_files;
+	int size_kb;
+	char *write_buffer = NULL;
+
+	while ((opt = getopt(argc, argv, "sS")) != -1) {
+		switch (opt) {
+		case 's':
+			do_fsync = true;
+			break;
+		case 'S':
+			do_sync = true;
+			break;
+		default:
+			fputs(cmd->cmd_help, stderr);
+			exit(1);
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 3) {
+		fputs("Excess arguments\n\n", stderr);
+		fputs(cmd->cmd_help, stderr);
+		exit(1);
+	}
+
+	dir = argv[0];
+	num_files = atoi(argv[1]);
+	size_kb = atoi(argv[2]);
+
+	if (num_files <= 0) {
+		fprintf(stderr, "Error: Number of files must be positive.\n");
+		exit(1);
+	}
+
+	if (size_kb > 0) {
+		write_buffer = malloc(size_kb * 1024);
+		if (!write_buffer) {
+			perror("Failed to allocate write buffer");
+			exit(1);
+		}
+		memset(write_buffer, 'a', size_kb * 1024);
+	}
+
+	// Creation Phase
+	printf("Starting test: Creating %d files of %dKB each in %s (fsync: %s)\n",
+		num_files, size_kb, dir,
+		do_fsync ? "Enabled" : "Disabled");
+
+	struct timespec create_start, create_end;
+
+	clock_gettime(CLOCK_MONOTONIC, &create_start);
+
+	for (int i = 0; i < num_files; i++) {
+		char path[1024];
+
+		snprintf(path, sizeof(path), "%s/test_file_%d", dir, i);
+
+		int fd = open(path, O_WRONLY | O_CREAT, 0644);
+
+		if (fd < 0) {
+			perror("Error opening file");
+			continue;
+		}
+		if (size_kb > 0) {
+			if (write(fd, write_buffer, size_kb * 1024) < 0)
+				perror("Error writing to file");
+		}
+
+		if (do_fsync)
+			fsync(fd);
+
+		close(fd);
+	}
+
+	clock_gettime(CLOCK_MONOTONIC, &create_end);
+
+
+	// Deletion Phase
+	printf("Deleting %d created files (sync: %s)\n", num_files,
+		do_sync ? "Enabled" : "Disabled");
+
+	struct timespec del_start, del_end;
+
+	clock_gettime(CLOCK_MONOTONIC, &del_start);
+
+	for (int i = 0; i < num_files; i++) {
+		char path[1024];
+
+		snprintf(path, sizeof(path), "%s/test_file_%d", dir, i);
+		if (unlink(path) != 0)
+			perror("Error unlinking file");
+	}
+
+	if (do_sync)
+		sync();
+
+	clock_gettime(CLOCK_MONOTONIC, &del_end);
+
+	long create_seconds = create_end.tv_sec - create_start.tv_sec;
+	long create_ns = create_end.tv_nsec - create_start.tv_nsec;
+	double create_time_s = (double)create_seconds + (double)create_ns / 1000000000.0;
+	double create_throughput = (create_time_s > 0) ? (num_files / create_time_s) : 0;
+
+	long del_seconds = del_end.tv_sec - del_start.tv_sec;
+	long del_ns = del_end.tv_nsec - del_start.tv_nsec;
+	double del_time_s = (double)del_seconds + (double)del_ns / 1000000000.0;
+	double del_throughput = (del_time_s > 0) ? (num_files / del_time_s) : 0;
+
+	printf("Operation,total_files,file_size_kb,total_time_s,throughput_files_per_sec\n");
+
+	printf("CREATE,%d,%d,%.4f,%.2f\n",
+		   num_files,
+		   size_kb,
+		   create_time_s,
+		   create_throughput);
+
+	printf("DELETE,%d,%d,%.4f,%.2f\n",
+		   num_files,
+		   size_kb,
+		   del_time_s,
+		   del_throughput);
+
+	if (write_buffer)
+		free(write_buffer);
+
+	exit(0);
+}
+
 #define CMD_HIDDEN 	0x0001
 #define CMD(name) { #name, do_##name, name##_desc, name##_help, 0 }
 #define _CMD(name) { #name, do_##name, NULL, NULL, CMD_HIDDEN }
@@ -2140,6 +2285,7 @@ const struct cmd_desc cmd_list[] = {
 	CMD(get_advise),
 	CMD(ioprio),
 	CMD(ftruncate),
+	CMD(test_create_perf),
 	{ NULL, NULL, NULL, NULL, 0 }
 };
 
