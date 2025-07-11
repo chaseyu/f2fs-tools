@@ -1261,8 +1261,13 @@ int init_sb_info(struct f2fs_sb_info *sbi)
 			if (get_device_info(i))
 				ASSERT(0);
 		} else if (c.func != INJECT) {
-			ASSERT(!strcmp((char *)sb->devs[i].path,
-						(char *)c.devices[i].path));
+			if (strcmp((char *)sb->devs[i].path,
+					(char *)c.devices[i].path)) {
+				MSG(0, "paths mismatch: %s, %s\n",
+					(char *)sb->devs[i].path,
+					(char *)c.devices[i].path);
+				ASSERT(0);
+			}
 		}
 
 		c.devices[i].total_segments =
