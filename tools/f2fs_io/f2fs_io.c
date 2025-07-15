@@ -2241,7 +2241,7 @@ static void do_test_create_perf(int argc, char **argv, const struct cmd_desc *cm
 
 #define test_lookup_perf_desc "measure readdir/stat speed"
 #define test_lookup_perf_help						\
-"f2fs_io test_lookup_perf [-s] [-S] <dir> <num_files>\n\n"		\
+"f2fs_io test_lookup_perf [-i] [-v] <dir> <num_files>\n\n"		\
 "Measures readdir/stat performance.\n"				\
 "  <dir>          The target directory in where it will test on.\n"	\
 "  <num_files>    The total number of files the test will initialize or test.\n"\
