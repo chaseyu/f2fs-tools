@@ -2329,8 +2329,8 @@ static void do_test_lookup_perf(int argc, char **argv, const struct cmd_desc *cm
 		if (!verb)
 			continue;
 
-		printf("%-8lu %-10s %-9d %-8jd %s\n",
-			dp->d_ino,
+		printf("%-8llu %-10s %-9d %-8jd %s\n",
+			(unsigned long long)dp->d_ino,
 			(dp->d_type == DT_REG) ?  "regular" :
 			(dp->d_type == DT_DIR) ?  "directory" :
 			(dp->d_type == DT_FIFO) ? "FIFO" :
