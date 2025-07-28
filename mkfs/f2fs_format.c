@@ -687,6 +687,17 @@ static int f2fs_prepare_super_block(void)
 	memcpy(sb->init_version, c.version, VERSION_LEN);
 
 	if (c.feature & F2FS_FEATURE_CASEFOLD) {
+		/*
+		 * if [no]hashonly option is not assigned, let's disable
+		 * linear lookup fallback by default for Android case.
+		 */
+		if ((c.nolinear_lookup == LINEAR_LOOKUP_DEFAULT) &&
+			(c.disabled_feature & F2FS_FEATURE_LINEAR_LOOKUP)) {
+			c.s_encoding_flags |= F2FS_ENC_NO_COMPAT_FALLBACK_FL;
+			MSG(0, "Info: set default linear_lookup option: %s\n",
+				c.s_encoding_flags & F2FS_ENC_NO_COMPAT_FALLBACK_FL ?
+				"disable" : "enable");
+		}
 		set_sb(s_encoding, c.s_encoding);
 		set_sb(s_encoding_flags, c.s_encoding_flags);
 	}

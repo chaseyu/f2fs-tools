@@ -1478,7 +1478,8 @@ enum {
 
 /* feature list in Android */
 enum {
-	F2FS_FEATURE_NAT_BITS = 0x0001,
+	F2FS_FEATURE_NAT_BITS		= 0x0001,
+	F2FS_FEATURE_LINEAR_LOOKUP	= 0x0002,
 };
 
 /* nolinear lookup tune */
