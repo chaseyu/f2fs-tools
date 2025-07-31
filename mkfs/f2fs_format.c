@@ -389,7 +389,8 @@ static int f2fs_prepare_super_block(void)
 			 * aligned at the zone.
 			 */
 			MSG(1, "\tError: Unaligned segment0 start (%u) for zoned LU (zone_blocks: %"PRIu64")\n",
-				get_sb(segment0_blkaddr), c.zone_blocks);
+				get_sb(segment0_blkaddr),
+				(uint64_t)c.zone_blocks);
 			return -1;
 		} else if (c.ndevs > 1 &&
 			(c.devices[1].start_blkaddr - get_sb(segment0_blkaddr)) % c.zone_blocks) {
@@ -401,7 +402,8 @@ static int f2fs_prepare_super_block(void)
 			 */
 			MSG(1, "\tError: Unaligned start (%"PRIu64") for zoned LU from segment0 (%u) (zone_blocks: %"PRIu64")\n",
 				c.devices[1].start_blkaddr,
-				get_sb(segment0_blkaddr), c.zone_blocks);
+				get_sb(segment0_blkaddr),
+				(uint64_t)c.zone_blocks);
 			return -1;
 		}
 	}
