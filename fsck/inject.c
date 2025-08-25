@@ -1227,6 +1227,9 @@ int do_inject(struct f2fs_sb_info *sbi)
 	struct inject_option *opt = (struct inject_option *)c.private;
 	int ret = -EINVAL;
 
+	if (c.zoned_model == F2FS_ZONED_HM)
+		fsck_init(sbi);
+
 	if (opt->sb >= 0)
 		ret = inject_sb(sbi, opt);
 	else if (opt->cp >= 0)
@@ -1241,6 +1244,16 @@ int do_inject(struct f2fs_sb_info *sbi)
 		ret = inject_node(sbi, opt);
 	else if (opt->dent)
 		ret = inject_dentry(sbi, opt);
+
+	if (c.zoned_model == F2FS_ZONED_HM) {
+		if (!ret && (opt->node || opt->dent)) {
+			write_curseg_info(sbi);
+			flush_journal_entries(sbi);
+			flush_sit_entries(sbi);
+			write_checkpoint(sbi);
+		}
+		fsck_free(sbi);
+	}
 
 	return ret;
 }
