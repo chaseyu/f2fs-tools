@@ -1694,7 +1694,7 @@ static int f2fs_early_init_nid_bitmap(struct f2fs_sb_info *sbi)
 			continue;
 		}
 
-		nid = le32_to_cpu(nid_in_journal(journal, i));
+		nid = nid_in_journal(journal, i);
 		if (!IS_VALID_NID(sbi, nid)) {
 			MSG(0, "\tError: f2fs_init_nid_bitmap: nid(%u) is invalid!!!\n", nid);
 			journal->n_nats = cpu_to_le16(i);
@@ -2573,7 +2573,7 @@ void update_nat_blkaddr(struct f2fs_sb_info *sbi, nid_t ino,
 	int ret, i;
 
 	for (i = 0; i < nats_in_cursum(journal); i++) {
-		if (le32_to_cpu(nid_in_journal(journal, i)) == nid) {
+		if (nid_in_journal(journal, i) == nid) {
 			entry = &nat_in_journal(journal, i);
 			entry->block_addr = cpu_to_le32(newaddr);
 			if (ino)
@@ -2677,7 +2677,7 @@ static int build_sit_entries(struct f2fs_sb_info *sbi)
 	}
 
 	for (i = 0; i < sits_in_cursum(journal); i++) {
-		segno = le32_to_cpu(segno_in_journal(journal, i));
+		segno = segno_in_journal(journal, i);
 
 		if (segno >= MAIN_SEGS(sbi)) {
 			MSG(0, "\tError: build_sit_entries: segno(%u) is invalid!!!\n", segno);
@@ -2883,7 +2883,7 @@ next:
 		return i;
 	}
 
-	nid = le32_to_cpu(nid_in_journal(journal, i));
+	nid = nid_in_journal(journal, i);
 
 	entry_off = nid % NAT_ENTRY_PER_BLOCK;
 	block_addr = current_nat_addr(sbi, nid, NULL);
@@ -3282,7 +3282,7 @@ int lookup_nat_in_journal(struct f2fs_sb_info *sbi, u32 nid,
 	int i = 0;
 
 	for (i = 0; i < nats_in_cursum(journal); i++) {
-		if (le32_to_cpu(nid_in_journal(journal, i)) == nid) {
+		if (nid_in_journal(journal, i) == nid) {
 			memcpy(raw_nat, &nat_in_journal(journal, i),
 						sizeof(struct f2fs_nat_entry));
 			DBG(3, "==> Found nid [0x%x] in nat cache\n", nid);
@@ -3307,7 +3307,7 @@ void nullify_nat_entry(struct f2fs_sb_info *sbi, u32 nid)
 
 	/* check in journal */
 	for (i = 0; i < nats_in_cursum(journal); i++) {
-		if (le32_to_cpu(nid_in_journal(journal, i)) == nid) {
+		if (nid_in_journal(journal, i) == nid) {
 			memset(&nat_in_journal(journal, i), 0,
 					sizeof(struct f2fs_nat_entry));
 			FIX_MSG("Remove nid [0x%x] in nat journal", nid);
@@ -3611,7 +3611,7 @@ void build_nat_area_bitmap(struct f2fs_sb_info *sbi)
 	/* Traverse nat journal, update the corresponding entries */
 	for (i = 0; i < nats_in_cursum(journal); i++) {
 		struct f2fs_nat_entry raw_nat;
-		nid = le32_to_cpu(nid_in_journal(journal, i));
+		nid = nid_in_journal(journal, i);
 		ni.nid = nid;
 
 		DBG(3, "==> Found nid [0x%x] in nat cache, update it\n", nid);

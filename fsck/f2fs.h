@@ -504,9 +504,9 @@ struct fsync_inode_entry {
 #define sits_in_cursum(jnl)             (le16_to_cpu(jnl->n_sits))
 
 #define nat_in_journal(jnl, i)          (jnl->nat_j.entries[i].ne)
-#define nid_in_journal(jnl, i)          (jnl->nat_j.entries[i].nid)
+#define nid_in_journal(jnl, i)          (le32_to_cpu(jnl->nat_j.entries[i].nid))
 #define sit_in_journal(jnl, i)          (jnl->sit_j.entries[i].se)
-#define segno_in_journal(jnl, i)        (jnl->sit_j.entries[i].segno)
+#define segno_in_journal(jnl, i)        (le32_to_cpu(jnl->sit_j.entries[i].segno))
 
 #define SIT_ENTRY_OFFSET(sit_i, segno)                                  \
 	((segno) % sit_i->sents_per_block)
