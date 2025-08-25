@@ -249,8 +249,9 @@ int inject_parse_options(int argc, char *argv[], struct inject_option *opt)
 
 	while ((o = getopt_long(argc, argv, option_string,
 				long_opt, NULL)) != EOF) {
-		long nid, blk;
+		long long val;
 
+		errno = 0;
 		switch (o) {
 		case 1:
 			c.dry_run = 1;
@@ -261,18 +262,19 @@ int inject_parse_options(int argc, char *argv[], struct inject_option *opt)
 			MSG(0, "Info: inject member %s\n", optarg);
 			break;
 		case 3:
-			if (!is_digits(optarg))
-				return EWRONG_OPT;
-			opt->idx = atoi(optarg);
-			MSG(0, "Info: inject slot index %d\n", opt->idx);
-			break;
-		case 4:
-			opt->val = strtoll(optarg, &endptr, 0);
-			if (opt->val == LLONG_MAX || opt->val == LLONG_MIN ||
+			val = strtoll(optarg, &endptr, 0);
+			if (errno != 0 || val >= UINT_MAX || val < 0 ||
 			    *endptr != '\0')
 				return -ERANGE;
+			opt->idx = (unsigned int)val;
+			MSG(0, "Info: inject slot index %u\n", opt->idx);
+			break;
+		case 4:
+			opt->val = strtoull(optarg, &endptr, 0);
+			if (errno != 0 || *endptr != '\0')
+				return -ERANGE;
 			MSG(0, "Info: inject value %lld : 0x%llx\n", opt->val,
-			    (unsigned long long)opt->val);
+			    opt->val);
 			break;
 		case 5:
 			opt->str = strdup(optarg);
@@ -305,11 +307,11 @@ int inject_parse_options(int argc, char *argv[], struct inject_option *opt)
 			MSG(0, "Info: inject nat pack %s\n", pack[opt->nat]);
 			break;
 		case 9:
-			nid = strtol(optarg, &endptr, 0);
-			if (nid >= UINT_MAX || nid < 0 ||
+			val = strtoll(optarg, &endptr, 0);
+			if (errno != 0 || val >= UINT_MAX || val < 0 ||
 			    *endptr != '\0')
 				return -ERANGE;
-			opt->nid = nid;
+			opt->nid = (nid_t)val;
 			MSG(0, "Info: inject nid %u : 0x%x\n", opt->nid, opt->nid);
 			break;
 		case 10:
@@ -321,11 +323,11 @@ int inject_parse_options(int argc, char *argv[], struct inject_option *opt)
 			MSG(0, "Info: inject sit pack %s\n", pack[opt->sit]);
 			break;
 		case 11:
-			blk = strtol(optarg, &endptr, 0);
-			if (blk >= UINT_MAX || blk < 0 ||
+			val = strtoll(optarg, &endptr, 0);
+			if (errno != 0 || val >= UINT_MAX || val < 0 ||
 			    *endptr != '\0')
 				return -ERANGE;
-			opt->blk = blk;
+			opt->blk = (block_t)val;
 			MSG(0, "Info: inject blkaddr %u : 0x%x\n", opt->blk, opt->blk);
 			break;
 		case 12:
