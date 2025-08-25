@@ -10,8 +10,21 @@
  */
 
 #include <getopt.h>
+#include "f2fs.h"
 #include "node.h"
 #include "inject.h"
+
+/* localtion of a sit/nat entry */
+enum entry_pos {
+	ENT_IN_JOURNAL,
+	ENT_IN_PACK1,
+	ENT_IN_PACK2
+};
+
+/* format of printing entry position */
+#define PRENTPOS "%s %d"
+#define show_entry_pos(pack) (pack) == ENT_IN_JOURNAL ? "journal" : "pack", \
+			     (pack) == ENT_IN_JOURNAL ? 0 : (pack)
 
 static void print_raw_nat_entry_info(struct f2fs_nat_entry *ne)
 {
@@ -534,16 +547,92 @@ out:
 	return ret;
 }
 
-static int inject_nat(struct f2fs_sb_info *sbi, struct inject_option *opt)
+static void rewrite_nat_in_journal(struct f2fs_sb_info *sbi, u32 nid,
+				   struct f2fs_nat_entry *nat)
+{
+	struct f2fs_checkpoint *cp = F2FS_CKPT(sbi);
+	struct curseg_info *curseg = CURSEG_I(sbi, CURSEG_HOT_DATA);
+	struct f2fs_journal *journal = F2FS_SUMMARY_BLOCK_JOURNAL(curseg->sum_blk);
+	block_t blkaddr;
+	int ret, i;
+
+	for (i = 0; i < nats_in_cursum(journal); i++) {
+		if (nid_in_journal(journal, i) == nid) {
+			memcpy(&nat_in_journal(journal, i), nat, sizeof(*nat));
+			break;
+		}
+	}
+
+	if (is_set_ckpt_flags(cp, CP_UMOUNT_FLAG))
+		blkaddr = sum_blk_addr(sbi, NR_CURSEG_TYPE, CURSEG_HOT_DATA);
+	else
+		blkaddr = sum_blk_addr(sbi, NR_CURSEG_DATA_TYPE, CURSEG_HOT_DATA);
+
+	ret = dev_write_block(curseg->sum_blk, blkaddr, WRITE_LIFE_NONE);
+	ASSERT(ret >= 0);
+}
+
+static block_t get_nat_addr(struct f2fs_sb_info *sbi, int nat_pack,
+			    nid_t nid, enum entry_pos *pack)
 {
 	struct f2fs_nm_info *nm_i = NM_I(sbi);
+	block_t blkaddr;
+	unsigned int blkoff;
+
+	blkoff = NAT_BLOCK_OFFSET(nid);
+	blkaddr = nm_i->nat_blkaddr + (blkoff << 1) +
+			(blkoff & (sbi->blocks_per_seg - 1));
+	if (nat_pack == 0) // select valid nat pack
+		nat_pack = f2fs_test_bit(blkoff, nm_i->nat_bitmap) ?
+				ENT_IN_PACK2 : ENT_IN_PACK1;
+	if (nat_pack == ENT_IN_PACK2)
+		blkaddr += sbi->blocks_per_seg;
+	if (pack)
+		*pack = nat_pack;
+	return blkaddr;
+}
+
+static struct f2fs_nat_entry *get_raw_nat(struct f2fs_sb_info *sbi,
+					  struct inject_option *opt,
+					  struct f2fs_nat_block *nat_blk,
+					  enum entry_pos *pack)
+{
+	block_t blkaddr;
+	unsigned int offs;
+
+	if (lookup_nat_in_journal(sbi, opt->nid, &nat_blk->entries[0]) >= 0) {
+		offs = 0;
+		*pack = ENT_IN_JOURNAL;
+	} else {
+		blkaddr = get_nat_addr(sbi, opt->nat, opt->nid, pack);
+		ASSERT(dev_read_block(nat_blk, blkaddr) >= 0);
+		offs = opt->nid % NAT_ENTRY_PER_BLOCK;
+	}
+
+	return &nat_blk->entries[offs];
+}
+
+static void rewrite_raw_nat(struct f2fs_sb_info *sbi,
+			    struct inject_option *opt,
+			    struct f2fs_nat_block *nat_blk,
+			    enum entry_pos pack)
+{
+	block_t blkaddr;
+
+	if (pack == ENT_IN_JOURNAL) {
+		rewrite_nat_in_journal(sbi, opt->nid, &nat_blk->entries[0]);
+	} else {
+		blkaddr = get_nat_addr(sbi, opt->nat, opt->nid, NULL);
+		ASSERT(dev_write_block(nat_blk, blkaddr, WRITE_LIFE_NONE) >= 0);
+	}
+}
+
+static int inject_nat(struct f2fs_sb_info *sbi, struct inject_option *opt)
+{
 	struct f2fs_super_block *sb = F2FS_RAW_SUPER(sbi);
 	struct f2fs_nat_block *nat_blk;
 	struct f2fs_nat_entry *ne;
-	block_t blk_addr;
-	unsigned int offs;
-	bool is_set;
-	int ret;
+	enum entry_pos pack;
 
 	if (!IS_VALID_NID(sbi, opt->nid)) {
 		ERR_MSG("Invalid nid %u range [%u:%"PRIu64"]\n", opt->nid, 0,
@@ -556,38 +645,24 @@ static int inject_nat(struct f2fs_sb_info *sbi, struct inject_option *opt)
 	nat_blk = calloc(F2FS_BLKSIZE, 1);
 	ASSERT(nat_blk);
 
-	/* change NAT version bitmap temporarily to select specified pack */
-	is_set = f2fs_test_bit(opt->nid, nm_i->nat_bitmap);
-	if (opt->nat == 0) {
-		opt->nat = is_set ? 2 : 1;
-	} else {
-		if (opt->nat == 1)
-			f2fs_clear_bit(opt->nid, nm_i->nat_bitmap);
-		else
-			f2fs_set_bit(opt->nid, nm_i->nat_bitmap);
-	}
-
-	blk_addr = current_nat_addr(sbi, opt->nid, NULL);
-
-	ret = dev_read_block(nat_blk, blk_addr);
-	ASSERT(ret >= 0);
-
-	offs = opt->nid % NAT_ENTRY_PER_BLOCK;
-	ne = &nat_blk->entries[offs];
+	ne = get_raw_nat(sbi, opt, nat_blk, &pack);
 
 	if (!strcmp(opt->mb, "version")) {
 		MSG(0, "Info: inject nat entry version of nid %u "
-		    "in pack %d: %d -> %d\n", opt->nid, opt->nat,
+		    "in "PRENTPOS": %d -> %d\n", opt->nid,
+		    show_entry_pos(pack),
 		    ne->version, (u8)opt->val);
 		ne->version = (u8)opt->val;
 	} else if (!strcmp(opt->mb, "ino")) {
 		MSG(0, "Info: inject nat entry ino of nid %u "
-		    "in pack %d: %d -> %d\n", opt->nid, opt->nat,
+		    "in "PRENTPOS": %d -> %d\n", opt->nid,
+		    show_entry_pos(pack),
 		    le32_to_cpu(ne->ino), (nid_t)opt->val);
 		ne->ino = cpu_to_le32((nid_t)opt->val);
 	} else if (!strcmp(opt->mb, "block_addr")) {
 		MSG(0, "Info: inject nat entry block_addr of nid %u "
-		    "in pack %d: 0x%x -> 0x%x\n", opt->nid, opt->nat,
+		    "in "PRENTPOS": 0x%x -> 0x%x\n", opt->nid,
+		    show_entry_pos(pack),
 		    le32_to_cpu(ne->block_addr), (block_t)opt->val);
 		ne->block_addr = cpu_to_le32((block_t)opt->val);
 	} else {
@@ -597,25 +672,99 @@ static int inject_nat(struct f2fs_sb_info *sbi, struct inject_option *opt)
 	}
 	print_raw_nat_entry_info(ne);
 
-	ret = dev_write_block(nat_blk, blk_addr, WRITE_LIFE_NONE);
-	ASSERT(ret >= 0);
-	/* restore NAT version bitmap */
-	if (is_set)
-		f2fs_set_bit(opt->nid, nm_i->nat_bitmap);
-	else
-		f2fs_clear_bit(opt->nid, nm_i->nat_bitmap);
+	rewrite_raw_nat(sbi, opt, nat_blk, pack);
 
 	free(nat_blk);
-	return ret;
+	return 0;
+}
+
+static void rewrite_sit_in_journal(struct f2fs_sb_info *sbi, unsigned int segno,
+				   struct f2fs_sit_entry *sit)
+{
+	struct f2fs_checkpoint *cp = F2FS_CKPT(sbi);
+	struct curseg_info *curseg = CURSEG_I(sbi, CURSEG_COLD_DATA);
+	struct f2fs_journal *journal = F2FS_SUMMARY_BLOCK_JOURNAL(curseg->sum_blk);
+	block_t blkaddr;
+	int ret, i;
+
+	for (i = 0; i < sits_in_cursum(journal); i++) {
+		if (segno_in_journal(journal, i) == segno) {
+			memcpy(&sit_in_journal(journal, i), sit, sizeof(*sit));
+			break;
+		}
+	}
+
+	if (is_set_ckpt_flags(cp, CP_UMOUNT_FLAG))
+		blkaddr = sum_blk_addr(sbi, NR_CURSEG_TYPE, CURSEG_COLD_DATA);
+	else
+		blkaddr = sum_blk_addr(sbi, NR_CURSEG_DATA_TYPE, CURSEG_COLD_DATA);
+
+	ret = dev_write_block(curseg->sum_blk, blkaddr, WRITE_LIFE_NONE);
+	ASSERT(ret >= 0);
+}
+
+static block_t get_sit_addr(struct f2fs_sb_info *sbi, int sit_pack,
+			    unsigned int segno, enum entry_pos *pack)
+{
+	struct sit_info *sit_i = SIT_I(sbi);
+	unsigned int blkaddr, offs;
+
+	offs = SIT_BLOCK_OFFSET(sit_i, segno);
+	blkaddr = sit_i->sit_base_addr + offs;
+	if (sit_pack == 0) // select valid sit pack
+		sit_pack = f2fs_test_bit(offs, sit_i->sit_bitmap) ?
+				ENT_IN_PACK2 : ENT_IN_PACK1;
+	if (sit_pack == ENT_IN_PACK2)
+		blkaddr += sit_i->sit_blocks;
+	if (pack)
+		*pack = sit_pack;
+	return blkaddr;
+}
+
+static struct f2fs_sit_entry *get_raw_sit(struct f2fs_sb_info *sbi,
+					  struct inject_option *opt,
+					  struct f2fs_sit_block *sit_blk,
+					  enum entry_pos *pack)
+{
+	struct sit_info *sit_i = SIT_I(sbi);
+	unsigned int segno, offs;
+	block_t blkaddr;
+
+	segno = GET_SEGNO(sbi, opt->blk);
+	if (lookup_sit_in_journal(sbi, segno, &sit_blk->entries[0]) >= 0) {
+		offs = 0;
+		*pack = ENT_IN_JOURNAL;
+	} else {
+		blkaddr = get_sit_addr(sbi, opt->sit, segno, pack);
+		ASSERT(dev_read_block(sit_blk, blkaddr) >= 0);
+		offs = SIT_ENTRY_OFFSET(sit_i, segno);
+	}
+
+	return &sit_blk->entries[offs];
+}
+
+static void rewrite_raw_sit(struct f2fs_sb_info *sbi,
+			    struct inject_option *opt,
+			    struct f2fs_sit_block *sit_blk,
+			    enum entry_pos pack)
+{
+	unsigned int segno;
+	block_t blkaddr;
+
+	segno = GET_SEGNO(sbi, opt->blk);
+	if (pack == ENT_IN_JOURNAL) {
+		rewrite_sit_in_journal(sbi, segno, &sit_blk->entries[0]);
+	} else {
+		blkaddr = get_sit_addr(sbi, opt->sit, segno, NULL);
+		ASSERT(dev_write_block(sit_blk, blkaddr, WRITE_LIFE_NONE) >= 0);
+	}
 }
 
 static int inject_sit(struct f2fs_sb_info *sbi, struct inject_option *opt)
 {
-	struct sit_info *sit_i = SIT_I(sbi);
 	struct f2fs_sit_block *sit_blk;
 	struct f2fs_sit_entry *sit;
-	unsigned int segno, offs;
-	bool is_set;
+	enum entry_pos pack;
 
 	if (!f2fs_is_valid_blkaddr(sbi, opt->blk, DATA_GENERIC)) {
 		ERR_MSG("Invalid blkaddr 0x%x (valid range [0x%x:0x%lx])\n",
@@ -627,30 +776,18 @@ static int inject_sit(struct f2fs_sb_info *sbi, struct inject_option *opt)
 	sit_blk = calloc(F2FS_BLKSIZE, 1);
 	ASSERT(sit_blk);
 
-	segno = GET_SEGNO(sbi, opt->blk);
-	/* change SIT version bitmap temporarily to select specified pack */
-	is_set = f2fs_test_bit(segno, sit_i->sit_bitmap);
-	if (opt->sit == 0) {
-		opt->sit = is_set ? 2 : 1;
-	} else {
-		if (opt->sit == 1)
-			f2fs_clear_bit(segno, sit_i->sit_bitmap);
-		else
-			f2fs_set_bit(segno, sit_i->sit_bitmap);
-	}
-	get_current_sit_page(sbi, segno, sit_blk);
-	offs = SIT_ENTRY_OFFSET(sit_i, segno);
-	sit = &sit_blk->entries[offs];
+	sit = get_raw_sit(sbi, opt, sit_blk, &pack);
 
 	if (!strcmp(opt->mb, "vblocks")) {
 		MSG(0, "Info: inject sit entry vblocks of block 0x%x "
-		    "in pack %d: %u -> %u\n", opt->blk, opt->sit,
+		    "in "PRENTPOS": %u -> %u\n", opt->blk,
+		    show_entry_pos(pack),
 		    le16_to_cpu(sit->vblocks), (u16)opt->val);
 		sit->vblocks = cpu_to_le16((u16)opt->val);
 	} else if (!strcmp(opt->mb, "valid_map")) {
 		if (opt->idx == -1) {
-			MSG(0, "Info: auto idx = %u\n", offs);
-			opt->idx = offs;
+			opt->idx = OFFSET_IN_SEG(sbi, opt->blk);
+			MSG(0, "Info: auto idx = %u\n", opt->idx);
 		}
 		if (opt->idx >= SIT_VBLOCK_MAP_SIZE) {
 			ERR_MSG("invalid idx %u of valid_map[]\n", opt->idx);
@@ -658,8 +795,9 @@ static int inject_sit(struct f2fs_sb_info *sbi, struct inject_option *opt)
 			return -ERANGE;
 		}
 		MSG(0, "Info: inject sit entry valid_map[%d] of block 0x%x "
-		    "in pack %d: 0x%02x -> 0x%02x\n", opt->idx, opt->blk,
-		    opt->sit, sit->valid_map[opt->idx], (u8)opt->val);
+		    "in "PRENTPOS": 0x%02x -> 0x%02x\n", opt->idx, opt->blk,
+		    show_entry_pos(pack),
+		    sit->valid_map[opt->idx], (u8)opt->val);
 		sit->valid_map[opt->idx] = (u8)opt->val;
 	} else if (!strcmp(opt->mb, "mtime")) {
 		MSG(0, "Info: inject sit entry mtime of block 0x%x "
@@ -673,12 +811,7 @@ static int inject_sit(struct f2fs_sb_info *sbi, struct inject_option *opt)
 	}
 	print_raw_sit_entry_info(sit);
 
-	rewrite_current_sit_page(sbi, segno, sit_blk);
-	/* restore SIT version bitmap */
-	if (is_set)
-		f2fs_set_bit(segno, sit_i->sit_bitmap);
-	else
-		f2fs_clear_bit(segno, sit_i->sit_bitmap);
+	rewrite_raw_sit(sbi, opt, sit_blk, pack);
 
 	free(sit_blk);
 	return 0;
