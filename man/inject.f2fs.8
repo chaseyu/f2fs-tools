@@ -148,7 +148,7 @@ summary entry ofs_in_node.
 .RE
 .TP
 .BI \-\-node
-Inject node block specified by \fInid\P.
+Inject node block specified by \fInid\fP.
 The available \fImb\fP of \fInode\fP are:
 .RS 1.2i
 .TP
@@ -188,11 +188,26 @@ inode i_blocks.
 .BI i_xattr_nid
 inode i_xattr_nid.
 .TP
+.BI i_ext.fofs
+inode i_ext.fofs.
+.TP
+.BI i_ext.blk_addr
+inode i_ext.blk_addr.
+.TP
+.BI i_ext.len
+inode i_ext.len.
+.TP
 .BI i_extra_isize
 inode i_extra_isize.
 .TP
+.BI i_inline_xattr_size
+inode i_inline_xattr_size.
+.TP
 .BI i_inode_checksum
 inode i_inode_checksum.
+.TP
+.BI i_compr_blocks
+inode i_compr_blocks.
 .TP
 .BI i_addr
 inode i_addr array specified by \fIidx\fP.
