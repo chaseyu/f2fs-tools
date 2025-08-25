@@ -1595,6 +1595,7 @@ struct f2fs_configuration {
 	int whint;
 	int aliased_devices;
 	uint32_t aliased_segments;
+	bool answer_no;
 
 	/* mkfs parameters */
 	int fake_seed;

@@ -681,6 +681,9 @@ static int dump_filesystem(struct f2fs_sb_info *sbi, struct node_info *ni,
 	if (c.show_file_map)
 		return dump_inode_blk(sbi, ni->ino, node_blk);
 
+	if (c.answer_no)
+		return 0;
+
 	printf("Do you want to dump this %s into %s/? [Y/N] ",
 			S_ISDIR(imode) ? "folder" : "file",
 			base_path);
