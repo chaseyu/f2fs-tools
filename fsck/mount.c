@@ -3510,17 +3510,19 @@ void write_checkpoints(struct f2fs_sb_info *sbi)
 	write_checkpoint(sbi);
 }
 
-void write_raw_cp_blocks(struct f2fs_sb_info *sbi,
-			 struct f2fs_checkpoint *cp, int which)
+void write_raw_cp_blocks(struct f2fs_sb_info *sbi, struct f2fs_checkpoint *cp,
+			 int which, bool update_crc)
 {
 	struct f2fs_super_block *sb = F2FS_RAW_SUPER(sbi);
 	uint32_t crc;
 	block_t cp_blkaddr;
 	int ret;
 
-	crc = f2fs_checkpoint_chksum(cp);
-	*((__le32 *)((unsigned char *)cp + get_cp(checksum_offset))) =
+	if (update_crc) {
+		crc = f2fs_checkpoint_chksum(cp);
+		*((__le32 *)((unsigned char *)cp + get_cp(checksum_offset))) =
 							cpu_to_le32(crc);
+	}
 
 	cp_blkaddr = get_sb(cp_blkaddr);
 	if (which == 2)
@@ -3754,7 +3756,7 @@ static void del_fsync_inode(struct fsync_inode_entry *entry)
 	free(entry);
 }
 
-static void destroy_fsync_dnodes(struct list_head *head)
+void f2fs_destroy_fsync_dnodes(struct list_head *head)
 {
 	struct fsync_inode_entry *entry, *tmp;
 
@@ -3860,7 +3862,7 @@ static int sanity_check_node_chain(struct f2fs_sb_info *sbi,
 	return 0;
 }
 
-static int find_fsync_inode(struct f2fs_sb_info *sbi, struct list_head *head)
+int f2fs_find_fsync_inode(struct f2fs_sb_info *sbi, struct list_head *head)
 {
 	struct curseg_info *curseg;
 	struct f2fs_node *node_blk, *node_blk_fast;
@@ -4056,7 +4058,7 @@ static int record_fsync_data(struct f2fs_sb_info *sbi)
 	if (!need_fsync_data_record(sbi))
 		return 0;
 
-	ret = find_fsync_inode(sbi, &inode_list);
+	ret = f2fs_find_fsync_inode(sbi, &inode_list);
 	if (ret)
 		goto out;
 
@@ -4071,7 +4073,7 @@ static int record_fsync_data(struct f2fs_sb_info *sbi)
 
 	ret = traverse_dnodes(sbi, &inode_list);
 out:
-	destroy_fsync_dnodes(&inode_list);
+	f2fs_destroy_fsync_dnodes(&inode_list);
 	return ret;
 }
 
