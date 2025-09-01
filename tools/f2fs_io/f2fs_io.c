@@ -710,7 +710,8 @@ static void do_write_with_advice(int argc, char **argv,
 			const struct cmd_desc *cmd, bool with_advice)
 {
 	u64 buf_size = 0, inc_num = 0, written = 0;
-	u64 offset;
+	u64 offset, offset_byte;
+	bool random_offset = false;
 	char *buf = NULL;
 	unsigned bs, count, i;
 	int flags = 0;
@@ -727,7 +728,11 @@ static void do_write_with_advice(int argc, char **argv,
 
 	buf_size = bs * F2FS_DEFAULT_BLKSIZE;
 
-	offset = atoi(argv[2]) * buf_size;
+	offset = atoi(argv[2]);
+	if (atoi(argv[2]) < 0) {
+		random_offset = true;
+		offset = -offset;
+	}
 
 	buf = aligned_xalloc(F2FS_DEFAULT_BLKSIZE, buf_size);
 	count = atoi(argv[3]);
@@ -812,10 +817,14 @@ static void do_write_with_advice(int argc, char **argv,
 		else if (!strcmp(argv[4], "rand"))
 			*(int *)buf = rand();
 
+		offset_byte = (random_offset ? rand() % offset :
+				offset + i) * buf_size;
+
 		/* write data */
 		max_time_t = get_current_us();
-		ret = pwrite(fd, buf, buf_size, offset + buf_size * i);
+		ret = pwrite(fd, buf, buf_size, offset_byte);
 		max_time_t = get_current_us() - max_time_t;
+
 		if (max_time < max_time_t)
 			max_time = max_time_t;
 		if (ret != buf_size)
@@ -844,7 +853,7 @@ static void do_write_with_advice(int argc, char **argv,
 		}
 	}
 
-	printf("Written %"PRIu64" bytes with pattern=%s, total_time=%"PRIu64" us, max_latency=%"PRIu64" us\n",
+	printf("Written %"PRIu64" bytes with pattern = %s, total_time = %"PRIu64" us, max_latency = %"PRIu64" us\n",
 				written, argv[4],
 				get_current_us() - total_time,
 				max_time);
@@ -855,6 +864,8 @@ static void do_write_with_advice(int argc, char **argv,
 #define write_help					\
 "f2fs_io write [chunk_size in 4kb] [offset in chunk_size] [count] [pattern] [IO] [file_path] {delay}\n\n"	\
 "Write given patten data in file_path\n"		\
+"Offset can be a negative number which\n"		\
+"  indicates random write range for atomic operations.\n" \
 "pattern can be\n"					\
 "  zero          : zeros\n"				\
 "  inc_num       : incrementing numbers\n"		\
