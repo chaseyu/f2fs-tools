@@ -160,6 +160,7 @@ static u64 get_current_us()
 static void do_fsync(int argc, char **argv, const struct cmd_desc *cmd)
 {
 	int fd;
+	u64 total_time;
 
 	if (argc != 2) {
 		fputs("Excess arguments\n\n", stderr);
@@ -169,10 +170,12 @@ static void do_fsync(int argc, char **argv, const struct cmd_desc *cmd)
 
 	fd = xopen(argv[1], O_WRONLY, 0);
 
+	total_time = get_current_us();
 	if (fsync(fd) != 0)
 		die_errno("fsync failed");
 
-	printf("fsync a file\n");
+	printf("fsync total_time = %"PRIu64" us\n",
+			get_current_us() - total_time);
 	exit(0);
 }
 
