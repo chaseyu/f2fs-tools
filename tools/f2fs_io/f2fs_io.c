@@ -24,6 +24,8 @@
 #include <linux/fs.h>
 #include <signal.h>
 #include <stdarg.h>
+#include <sys/uio.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -929,6 +931,7 @@ static void do_write_advice(int argc, char **argv, const struct cmd_desc *cmd)
 "Read data in file_path and print nbytes\n"		\
 "IO can be\n"						\
 "  buffered : buffered IO\n"				\
+"  dontcache: buffered IO + dontcache\n"		\
 "  dio      : direct IO\n"				\
 "  mmap     : mmap IO\n"				\
 "  mlock    : mmap + mlock\n"				\
@@ -948,6 +951,7 @@ static void do_read(int argc, char **argv, const struct cmd_desc *cmd)
 	int flags = 0;
 	int do_mmap = 0;
 	int do_mlock = 0;
+	int do_dontcache = 0;
 	int fd, advice;
 
 	if (argc != 8) {
@@ -972,6 +976,12 @@ static void do_read(int argc, char **argv, const struct cmd_desc *cmd)
 		do_mmap = 1;
 	else if (!strcmp(argv[4], "mlock"))
 		do_mlock = 1;
+	else if (!strcmp(argv[4], "dontcache"))
+#ifdef HAVE_PREADV2
+		do_dontcache = 1;
+#else
+		die("Not support - preadv2");
+#endif
 	else if (strcmp(argv[4], "buffered"))
 		die("Wrong IO type");
 
@@ -1016,7 +1026,14 @@ static void do_read(int argc, char **argv, const struct cmd_desc *cmd)
 		read_cnt = count * buf_size;
 	} else {
 		for (i = 0; i < count; i++) {
-			ret = pread(fd, buf, buf_size, offset + buf_size * i);
+			if (!do_dontcache) {
+				ret = pread(fd, buf, buf_size, offset + buf_size * i);
+			} else {
+#ifdef HAVE_PREADV2
+				struct iovec iov = { .iov_base = buf, .iov_len = buf_size };
+				ret = preadv2(fd, &iov, 1, offset + buf_size * i, RWF_DONTCACHE);
+#endif
+			}
 			if (ret != buf_size) {
 				printf("pread expected: %"PRIu64", readed: %"PRIu64"\n",
 						buf_size, ret);
