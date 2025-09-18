@@ -127,6 +127,12 @@ buffered I/O
 .TP
 .B dio
 direct I/O
+.TP
+.B mmap
+mmap(MAP_POPULATE)
+.TP
+.B mlock
+mmap() + mlock()
 .RE
 .TP
 \fBfiemap\fR \fI[offset in 4kb] [count] [file_path]\fR

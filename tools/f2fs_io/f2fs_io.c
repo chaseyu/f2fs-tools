@@ -931,6 +931,7 @@ static void do_write_advice(int argc, char **argv, const struct cmd_desc *cmd)
 "  buffered : buffered IO\n"				\
 "  dio      : direct IO\n"				\
 "  mmap     : mmap IO\n"				\
+"  mlock    : mmap + mlock\n"				\
 "advice can be\n"					\
 " 1 : set sequential|willneed\n"			\
 " 0 : none\n"						\
@@ -940,12 +941,13 @@ static void do_read(int argc, char **argv, const struct cmd_desc *cmd)
 	u64 buf_size = 0, ret = 0, read_cnt = 0;
 	u64 offset;
 	char *buf = NULL;
-	char *data;
+	char *data = NULL;
 	char *print_buf = NULL;
 	unsigned bs, count, i, print_bytes;
 	u64 total_time = 0;
 	int flags = 0;
 	int do_mmap = 0;
+	int do_mlock = 0;
 	int fd, advice;
 
 	if (argc != 8) {
@@ -968,6 +970,8 @@ static void do_read(int argc, char **argv, const struct cmd_desc *cmd)
 		flags |= O_DIRECT;
 	else if (!strcmp(argv[4], "mmap"))
 		do_mmap = 1;
+	else if (!strcmp(argv[4], "mlock"))
+		do_mlock = 1;
 	else if (strcmp(argv[4], "buffered"))
 		die("Wrong IO type");
 
@@ -993,11 +997,24 @@ static void do_read(int argc, char **argv, const struct cmd_desc *cmd)
 	total_time = get_current_us();
 	if (do_mmap) {
 		data = mmap(NULL, count * buf_size, PROT_READ,
-						MAP_SHARED | MAP_POPULATE, fd, offset);
+				MAP_SHARED | MAP_POPULATE, fd, offset);
 		if (data == MAP_FAILED)
 			die("Mmap failed");
-	}
-	if (!do_mmap) {
+
+		read_cnt = count * buf_size;
+		memcpy(print_buf, data, print_bytes);
+	} else if (do_mlock) {
+		data = mmap(NULL, count * buf_size, PROT_READ,
+				MAP_SHARED, fd, offset);
+		if (data == MAP_FAILED)
+			die("Mmap failed");
+		if (posix_fadvise(fd, offset, count * buf_size,
+					POSIX_FADV_WILLNEED) != 0)
+			die_errno("fadvise failed");
+		if (mlock(data, count * buf_size))
+			die_errno("mlock failed");
+		read_cnt = count * buf_size;
+	} else {
 		for (i = 0; i < count; i++) {
 			ret = pread(fd, buf, buf_size, offset + buf_size * i);
 			if (ret != buf_size) {
@@ -1014,9 +1031,6 @@ static void do_read(int argc, char **argv, const struct cmd_desc *cmd)
 			if (i == 0)
 				memcpy(print_buf, buf, print_bytes);
 		}
-	} else {
-		read_cnt = count * buf_size;
-		memcpy(print_buf, data, print_bytes);
 	}
 	printf("Read %"PRIu64" bytes total_time = %"PRIu64" us, BW = %.Lf MB/s print %u bytes:\n",
 		read_cnt, get_current_us() - total_time,
@@ -1028,6 +1042,12 @@ static void do_read(int argc, char **argv, const struct cmd_desc *cmd)
 			printf("\n%08"PRIx64" : ", offset + 16 * i);
 		else if (i % 2 == 0)
 			printf(" ");
+	}
+	if (do_mmap) {
+		munmap(data, count * buf_size);
+	} else if (do_mlock) {
+		munlock(data, count * buf_size);
+		munmap(data, count * buf_size);
 	}
 	printf("\n");
 	exit(0);
