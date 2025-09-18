@@ -101,6 +101,10 @@ static void *aligned_xalloc(size_t alignment, size_t size)
 
 	if (!p)
 		die("Memory alloc failed (requested %zu bytes)", size);
+
+	if (madvise(p, size, MADV_HUGEPAGE))
+		die("Madvise failed (requested %zu bytes)", size);
+
 	return p;
 }
 
