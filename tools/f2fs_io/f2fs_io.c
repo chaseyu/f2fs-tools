@@ -951,7 +951,8 @@ static void do_read(int argc, char **argv, const struct cmd_desc *cmd)
 	char *data = NULL;
 	char *print_buf = NULL;
 	unsigned bs, count, i, print_bytes;
-	u64 total_time = 0;
+	u64 io_time_start, io_time_end;
+	u64 mlock_time_start = 0, mlock_time_end = 0;
 	int flags = 0;
 	int do_mmap = 0;
 	int do_mlock = 0;
@@ -1008,13 +1009,18 @@ static void do_read(int argc, char **argv, const struct cmd_desc *cmd)
 		printf("fadvise SEQUENTIAL|WILLNEED to a file: %s\n", argv[7]);
 	}
 
-	total_time = get_current_us();
+	io_time_start = get_current_us();
 	if (do_mmap) {
 		data = mmap(NULL, count * buf_size, PROT_READ,
 				MAP_SHARED | MAP_POPULATE, fd, offset);
 		if (data == MAP_FAILED)
 			die("Mmap failed");
+		io_time_end = get_current_us();
 
+		mlock_time_start = get_current_us();
+		if (mlock(data, count * buf_size))
+			die_errno("mlock failed");
+		mlock_time_end = get_current_us();
 		read_cnt = count * buf_size;
 		memcpy(print_buf, data, print_bytes);
 	} else if (do_mlock) {
@@ -1025,9 +1031,14 @@ static void do_read(int argc, char **argv, const struct cmd_desc *cmd)
 		if (posix_fadvise(fd, offset, count * buf_size,
 					POSIX_FADV_WILLNEED) != 0)
 			die_errno("fadvise failed");
+		io_time_end = get_current_us();
+
+		mlock_time_start = get_current_us();
 		if (mlock(data, count * buf_size))
 			die_errno("mlock failed");
+		mlock_time_end = get_current_us();
 		read_cnt = count * buf_size;
+		memcpy(print_buf, data, print_bytes);
 	} else {
 		for (i = 0; i < count; i++) {
 			if (!do_dontcache) {
@@ -1052,10 +1063,12 @@ static void do_read(int argc, char **argv, const struct cmd_desc *cmd)
 			if (i == 0)
 				memcpy(print_buf, buf, print_bytes);
 		}
+		io_time_end = get_current_us();
 	}
-	printf("Read %"PRIu64" bytes total_time = %"PRIu64" us, BW = %.Lf MB/s print %u bytes:\n",
-		read_cnt, get_current_us() - total_time,
-		((long double)read_cnt / (get_current_us() - total_time)), print_bytes);
+	printf("Read %"PRIu64" bytes IO time = %"PRIu64" us mlock time = %"PRIu64" us, BW = %.Lf MB/s print %u bytes:\n",
+		read_cnt, io_time_end - io_time_start,
+		mlock_time_end - mlock_time_start,
+		((long double)read_cnt / (io_time_end - io_time_start)), print_bytes);
 	printf("%08"PRIx64" : ", offset);
 	for (i = 1; i <= print_bytes; i++) {
 		printf("%02x", print_buf[i - 1]);
