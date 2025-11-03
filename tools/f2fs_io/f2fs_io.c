@@ -1225,6 +1225,7 @@ static void do_randread(int argc, char **argv, const struct cmd_desc *cmd)
 	int fd, advice;
 	time_t t;
 	struct stat stbuf;
+	u64 size;
 
 	if (argc != 6) {
 		fputs("Excess arguments\n\n", stderr);
@@ -1261,7 +1262,17 @@ static void do_randread(int argc, char **argv, const struct cmd_desc *cmd)
 	if (fstat(fd, &stbuf) != 0)
 		die_errno("fstat of source file failed");
 
-	aligned_size = (u64)stbuf.st_size & ~((u64)(F2FS_DEFAULT_BLKSIZE - 1));
+	if (S_ISBLK(stbuf.st_mode)) {
+		u64 devsize;
+
+		if (ioctl(fd, BLKGETSIZE64, &devsize) < 0)
+			die_errno("BLKGETSIZE64 failed");
+		size = devsize;
+	} else {
+		size = (u64)stbuf.st_size;
+	}
+
+	aligned_size = (u64)size & ~((u64)(F2FS_DEFAULT_BLKSIZE - 1));
 	if (aligned_size < buf_size)
 		die("File is too small to random read");
 	end_idx = (u64)(aligned_size - buf_size) / (u64)F2FS_DEFAULT_BLKSIZE + 1;
