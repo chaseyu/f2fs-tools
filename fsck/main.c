@@ -1341,13 +1341,15 @@ fsck_again:
 #endif
 #ifdef WITH_RESIZE
 	case RESIZE:
-		if (do_resize(sbi))
+		ret = do_resize(sbi);
+		if (ret)
 			goto out_err;
 		break;
 #endif
 #ifdef WITH_SLOAD
 	case SLOAD:
-		if (do_sload(sbi))
+		ret = do_sload(sbi);
+		if (ret)
 			goto out_err;
 
 		ret = f2fs_sparse_initialize_meta(sbi);
@@ -1363,13 +1365,15 @@ fsck_again:
 #endif
 #ifdef WITH_LABEL
 	case LABEL:
-		if (do_label(sbi))
+		ret = do_label(sbi);
+		if (ret)
 			goto out_err;
 		break;
 #endif
 #ifdef WITH_INJECT
 	case INJECT:
-		if (do_inject(sbi))
+		ret = do_inject(sbi);
+		if (ret)
 			goto out_err;
 		break;
 #endif
