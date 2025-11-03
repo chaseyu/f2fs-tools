@@ -2454,6 +2454,52 @@ static void do_test_lookup_perf(int argc, char **argv, const struct cmd_desc *cm
 	exit(0);
 }
 
+#define freeze_desc "freeze filesystem"
+#define freeze_help "f2fs_io freeze [directory_path]\n\n"
+
+static void do_freeze(int argc, char **argv, const struct cmd_desc *cmd)
+{
+	int ret, fd;
+
+	if (argc != 2) {
+		fputs("Excess arguments\n\n", stderr);
+		fputs(cmd->cmd_help, stderr);
+		exit(1);
+	}
+
+	fd = xopen(argv[1], O_DIRECTORY, 0);
+
+	ret = ioctl(fd, FIFREEZE);
+	if (ret < 0)
+		die_errno("FIFREEZE failed");
+
+	printf("freeze filesystem ret=%d\n", ret);
+	exit(0);
+}
+
+#define thaw_desc "thaw filesystem"
+#define thaw_help "f2fs_io thaw [directory_path]\n\n"
+
+static void do_thaw(int argc, char **argv, const struct cmd_desc *cmd)
+{
+	int ret, fd;
+
+	if (argc != 2) {
+		fputs("Excess arguments\n\n", stderr);
+		fputs(cmd->cmd_help, stderr);
+		exit(1);
+	}
+
+	fd = xopen(argv[1], O_DIRECTORY, 0);
+
+	ret = ioctl(fd, FITHAW);
+	if (ret < 0)
+		die_errno("FITHAW failed");
+
+	printf("thaw filesystem ret=%d\n", ret);
+	exit(0);
+}
+
 #define CMD_HIDDEN 	0x0001
 #define CMD(name) { #name, do_##name, name##_desc, name##_help, 0 }
 #define _CMD(name) { #name, do_##name, NULL, NULL, CMD_HIDDEN }
@@ -2504,6 +2550,8 @@ const struct cmd_desc cmd_list[] = {
 	CMD(ftruncate),
 	CMD(test_create_perf),
 	CMD(test_lookup_perf),
+	CMD(freeze),
+	CMD(thaw),
 	{ NULL, NULL, NULL, NULL, 0 }
 };
 
