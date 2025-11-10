@@ -1065,10 +1065,13 @@ static void do_read(int argc, char **argv, const struct cmd_desc *cmd)
 		}
 		io_time_end = get_current_us();
 	}
-	printf("Read %"PRIu64" bytes IO time = %"PRIu64" us mlock time = %"PRIu64" us, BW = %.Lf MB/s print %u bytes:\n",
-		read_cnt, io_time_end - io_time_start,
+	printf("Read %"PRIu64" bytes total_time = %"PRIu64" us, BW = %.Lf MB/s, "
+		"IO time = %"PRIu64" us, mlock time = %"PRIu64" us, print %u bytes:\n",
+		read_cnt, get_current_us() - io_time_start,
+		((long double)read_cnt / (get_current_us() - io_time_start)),
+		io_time_end - io_time_start,
 		mlock_time_end - mlock_time_start,
-		((long double)read_cnt / (io_time_end - io_time_start)), print_bytes);
+		print_bytes);
 	printf("%08"PRIx64" : ", offset);
 	for (i = 1; i <= print_bytes; i++) {
 		printf("%02x", print_buf[i - 1]);
