@@ -145,6 +145,9 @@ void resize_usage()
 	MSG(0, "[options]:\n");
 	MSG(0, "  -d debug level [default:0]\n");
 	MSG(0, "  -H support write hint\n");
+	MSG(0, "  -f ignore errors during resize\n");
+	MSG(0, "  -F force to resize\n");
+	MSG(0, "  -g add default options\n");
 	MSG(0, "  -o overprovision percentage [default:auto]\n");
 	MSG(0, "  -s safe resize (Does not resize metadata)\n");
 	MSG(0, "  -t target sectors [default: device size]\n");
@@ -640,7 +643,7 @@ void f2fs_parse_options(int argc, char *argv[])
 #endif
 	} else if (!strcmp("resize.f2fs", prog)) {
 #ifdef WITH_RESIZE
-		const char *option_string = "d:fFHst:o:V";
+		const char *option_string = "d:fFg:Hst:o:V";
 
 		c.func = RESIZE;
 		while ((option = getopt(argc, argv, option_string)) != EOF) {
@@ -664,6 +667,12 @@ void f2fs_parse_options(int argc, char *argv[])
 				c.force = 1;
 				MSG(0, "Info: Force to resize\n");
 				break;
+                        case 'g':
+                                if (!strcmp(optarg, "android")) {
+                                        c.defset = CONF_ANDROID;
+                                        MSG(0, "Info: Set conf for android\n");
+                                }
+                                break;
 			case 'H':
 				c.need_whint = true;
 				c.whint = WRITE_LIFE_NOT_SET;
