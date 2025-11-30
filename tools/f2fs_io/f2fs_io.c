@@ -938,6 +938,7 @@ static void do_write_advice(int argc, char **argv, const struct cmd_desc *cmd)
 "  dontcache: buffered IO + dontcache\n"		\
 "  dio      : direct IO\n"				\
 "  mmap     : mmap IO\n"				\
+"  madvise  : mmap + mlock2 + madvise\n"		\
 "  mlock    : mmap + mlock\n"				\
 "advice can be\n"					\
 " 1 : set sequential|willneed\n"			\
@@ -956,6 +957,7 @@ static void do_read(int argc, char **argv, const struct cmd_desc *cmd)
 	int flags = 0;
 	int do_mmap = 0;
 	int do_mlock = 0;
+	int do_madvise = 0;
 	int do_dontcache = 0;
 	int fd, advice;
 
@@ -979,6 +981,8 @@ static void do_read(int argc, char **argv, const struct cmd_desc *cmd)
 		flags |= O_DIRECT;
 	else if (!strcmp(argv[4], "mmap"))
 		do_mmap = 1;
+	else if (!strcmp(argv[4], "madvise"))
+		do_madvise = 1;
 	else if (!strcmp(argv[4], "mlock"))
 		do_mlock = 1;
 	else if (!strcmp(argv[4], "dontcache"))
@@ -1021,6 +1025,24 @@ static void do_read(int argc, char **argv, const struct cmd_desc *cmd)
 		if (mlock(data, count * buf_size))
 			die_errno("mlock failed");
 		mlock_time_end = get_current_us();
+		read_cnt = count * buf_size;
+		memcpy(print_buf, data, print_bytes);
+	} else if (do_madvise) {
+		data = mmap(NULL, count * buf_size, PROT_READ,
+				MAP_SHARED, fd, offset);
+		if (data == MAP_FAILED)
+			die("Mmap failed");
+
+		mlock_time_start = get_current_us();
+		if (mlock2(data, count * buf_size, MLOCK_ONFAULT))
+			die_errno("mlock2 failed");
+		mlock_time_end = get_current_us();
+
+		io_time_start = get_current_us();
+		if (madvise(data, count * buf_size, MADV_POPULATE_READ) != 0)
+			die_errno("madvise failed");
+		io_time_end = get_current_us();
+
 		read_cnt = count * buf_size;
 		memcpy(print_buf, data, print_bytes);
 	} else if (do_mlock) {
@@ -1085,7 +1107,7 @@ static void do_read(int argc, char **argv, const struct cmd_desc *cmd)
 	}
 	if (do_mmap) {
 		munmap(data, count * buf_size);
-	} else if (do_mlock) {
+	} else if (do_mlock || do_madvise) {
 		munlock(data, count * buf_size);
 		munmap(data, count * buf_size);
 	}
