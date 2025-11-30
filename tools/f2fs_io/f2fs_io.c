@@ -1009,8 +1009,8 @@ static void do_read(int argc, char **argv, const struct cmd_desc *cmd)
 		printf("fadvise SEQUENTIAL|WILLNEED to a file: %s\n", argv[7]);
 	}
 
-	io_time_start = get_current_us();
 	if (do_mmap) {
+		io_time_start = get_current_us();
 		data = mmap(NULL, count * buf_size, PROT_READ,
 				MAP_SHARED | MAP_POPULATE, fd, offset);
 		if (data == MAP_FAILED)
@@ -1028,6 +1028,8 @@ static void do_read(int argc, char **argv, const struct cmd_desc *cmd)
 				MAP_SHARED, fd, offset);
 		if (data == MAP_FAILED)
 			die("Mmap failed");
+
+		io_time_start = get_current_us();
 		if (posix_fadvise(fd, offset, count * buf_size,
 					POSIX_FADV_WILLNEED) != 0)
 			die_errno("fadvise failed");
@@ -1040,6 +1042,7 @@ static void do_read(int argc, char **argv, const struct cmd_desc *cmd)
 		read_cnt = count * buf_size;
 		memcpy(print_buf, data, print_bytes);
 	} else {
+		io_time_start = get_current_us();
 		for (i = 0; i < count; i++) {
 			if (!do_dontcache) {
 				ret = pread(fd, buf, buf_size, offset + buf_size * i);
