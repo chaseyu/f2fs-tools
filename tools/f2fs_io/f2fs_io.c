@@ -939,7 +939,7 @@ static void do_write_advice(int argc, char **argv, const struct cmd_desc *cmd)
 "  dio      : direct IO\n"				\
 "  mmap     : mmap IO\n"				\
 "  madvise  : mmap + mlock2 + madvise\n"		\
-"  mlock    : mmap + mlock\n"				\
+"  fadvise  : mmap + fadvise + mlock\n"			\
 "advice can be\n"					\
 " 1 : set sequential|willneed\n"			\
 " 0 : none\n"						\
@@ -956,7 +956,7 @@ static void do_read(int argc, char **argv, const struct cmd_desc *cmd)
 	u64 mlock_time_start = 0, mlock_time_end = 0;
 	int flags = 0;
 	int do_mmap = 0;
-	int do_mlock = 0;
+	int do_fadvise = 0;
 	int do_madvise = 0;
 	int do_dontcache = 0;
 	int fd, advice;
@@ -983,8 +983,8 @@ static void do_read(int argc, char **argv, const struct cmd_desc *cmd)
 		do_mmap = 1;
 	else if (!strcmp(argv[4], "madvise"))
 		do_madvise = 1;
-	else if (!strcmp(argv[4], "mlock"))
-		do_mlock = 1;
+	else if (!strcmp(argv[4], "fadvise"))
+		do_fadvise = 1;
 	else if (!strcmp(argv[4], "dontcache"))
 #ifdef HAVE_PREADV2
 		do_dontcache = 1;
@@ -1045,7 +1045,7 @@ static void do_read(int argc, char **argv, const struct cmd_desc *cmd)
 
 		read_cnt = count * buf_size;
 		memcpy(print_buf, data, print_bytes);
-	} else if (do_mlock) {
+	} else if (do_fadvise) {
 		data = mmap(NULL, count * buf_size, PROT_READ,
 				MAP_SHARED, fd, offset);
 		if (data == MAP_FAILED)
@@ -1107,7 +1107,7 @@ static void do_read(int argc, char **argv, const struct cmd_desc *cmd)
 	}
 	if (do_mmap) {
 		munmap(data, count * buf_size);
-	} else if (do_mlock || do_madvise) {
+	} else if (do_fadvise || do_madvise) {
 		munlock(data, count * buf_size);
 		munmap(data, count * buf_size);
 	}
