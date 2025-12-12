@@ -937,10 +937,10 @@ static void do_write_advice(int argc, char **argv, const struct cmd_desc *cmd)
 "  buffered : buffered IO\n"				\
 "  dontcache: buffered IO + dontcache\n"		\
 "  dio      : direct IO\n"				\
-"  mmap     : mmap IO\n"				\
-"  mlock    : mmap + mlock\n"				\
-"  madvise  : mmap + mlock2 + madvise\n"		\
-"  fadvise  : mmap + fadvise + mlock\n"			\
+"  mmap     : mmap(MAP_POPULATE) + mlock()\n"		\
+"  mlock    : mmap() + mlock()\n"			\
+"  madvise  : mmap() + mlock2(MLOCK_ONFAULT) + madvise(MADV_POPULATE_READ)\n"		\
+"  fadvise  : mmap() + fadvise(POSIX_FADV_WILLNEED) + mlock()\n"			\
 "advice can be\n"					\
 " 1 : set sequential|willneed\n"			\
 " 0 : none\n"						\
