@@ -3878,6 +3878,7 @@ int f2fs_find_fsync_inode(struct f2fs_sb_info *sbi, struct list_head *head)
 
 	while (1) {
 		struct fsync_inode_entry *entry;
+		struct f2fs_nat_entry nat_entry;
 
 		if (!f2fs_is_valid_blkaddr(sbi, blkaddr, META_POR))
 			break;
@@ -3894,6 +3895,29 @@ int f2fs_find_fsync_inode(struct f2fs_sb_info *sbi, struct list_head *head)
 
 		entry = get_fsync_inode(head, ino_of_node(node_blk));
 		if (!entry) {
+			if (IS_INODE(node_blk) && is_dent_dnode(node_blk)) {
+				get_nat_entry(sbi, ino_of_node(node_blk), &nat_entry);
+				if (nat_entry.block_addr != NULL_ADDR) {
+					if (!c.fix_on)
+						ASSERT_MSG("ino: %u is_dent:%d nat entry blkaddr is %#X\n",
+							ino_of_node(node_blk), is_dent_dnode(node_blk),
+							nat_entry.block_addr);
+					else if (f2fs_dev_is_writable()) {
+						int ret = 0;
+
+						ASSERT_MSG("Set node_blk %#x fsync flag [%u] -> [0]"
+							" next_blkaddr [%#x] -> [NULL_ADDR]\n",
+							blkaddr, is_fsync_dnode(node_blk),
+							F2FS_NODE_FOOTER(node_blk)->next_blkaddr);
+						F2FS_NODE_FOOTER(node_blk)->next_blkaddr = NULL_ADDR;
+						set_fsync_mark(node_blk, 0);
+						ret = dev_write_block(node_blk, blkaddr,
+							f2fs_io_type_to_rw_hint(CURSEG_WARM_NODE));
+						ASSERT(ret >= 0);
+						goto next;
+					}
+				}
+			}
 			entry = add_fsync_inode(head, ino_of_node(node_blk));
 			if (!entry) {
 				err = -1;
